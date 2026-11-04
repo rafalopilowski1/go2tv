@@ -1,0 +1,52 @@
+name: Locale smoke
+
+on:
+  push:
+    branches: [verify/polish-locale]
+
+permissions:
+  contents: read
+
+jobs:
+  locale:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: English control (separate process)
+        shell: bash
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+          LANGUAGE: ""
+          GO2TV_SMOKE_EXPECT_LOCALE: en
+          GO2TV_SMOKE_EXPECT_SETTINGS: Settings
+          GO2TV_SMOKE_EXPECT_COUNTRY_DE: Germany
+          GO2TV_SMOKE_EXPECT_DEVICES_FORMAT: "%d devices found"
+        run: go run ./.locale-smoke
+      - name: Set Windows user culture (new processes only)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Write-Host "before: Get-Culture=$((Get-Culture).Name); Get-UICulture=$((Get-UICulture).Name)"
+          Set-Culture -CultureInfo pl-PL
+          Write-Host "same process keeps startup values: Get-Culture=$((Get-Culture).Name); Get-UICulture=$((Get-UICulture).Name)"
+          Write-Host "HKCU LocaleName=$((Get-ItemProperty 'HKCU:\Control Panel\International').LocaleName)"
+          powershell -NoProfile -Command "Write-Host ('new process: Get-Culture=' + (Get-Culture).Name + '; Get-UICulture=' + (Get-UICulture).Name + ' (UI language stays en-US by design)')"
+      - name: Polish (separate process)
+        shell: bash
+        env:
+          LANG: pl_PL.UTF-8
+          LC_ALL: pl_PL.UTF-8
+          LANGUAGE: ""
+          GO2TV_SMOKE_EXPECT_LOCALE: pl
+          GO2TV_SMOKE_EXPECT_SETTINGS: Ustawienia
+          GO2TV_SMOKE_EXPECT_COUNTRY_DE: Niemcy
+          GO2TV_SMOKE_EXPECT_DEVICES_FORMAT: "Znalezione urządzenia: %d"
+        run: go run ./.locale-smoke
